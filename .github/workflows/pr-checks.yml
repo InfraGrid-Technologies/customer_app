@@ -1,0 +1,50 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [dev, sit, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  branch-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source -> target branch is allowed
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          echo "PR: $HEAD_REF -> $BASE_REF"
+          case "$BASE_REF" in
+            dev)
+              [[ "$HEAD_REF" =~ ^(feature/|feat-|bugfix/|fix/|hotfix/) ]] && exit 0
+              echo "::error::Only feature/*, feat-*, bugfix/*, fix/* or hotfix/* branches can merge into dev." ;;
+            sit)
+              [[ "$HEAD_REF" == "dev" || "$HEAD_REF" =~ ^hotfix/ ]] && exit 0
+              echo "::error::Only dev (or hotfix/*) can merge into sit." ;;
+            main)
+              [[ "$HEAD_REF" == "sit" || "$HEAD_REF" =~ ^hotfix/ ]] && exit 0
+              echo "::error::Only sit (or hotfix/*) can merge into main." ;;
+          esac
+          exit 1
+
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npx expo lint
+      - name: Type check
+        run: npx tsc --noEmit
