@@ -1,0 +1,1337 @@
+import React, { useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Modal,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  LayoutChangeEvent,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { VerifiedBadgeCard, DocumentPickerModal, VehicleTypeDropdownModal } from '../components';
+import { findCategoryForType } from '../constants/vehicleTaxonomy';
+import { theme } from '../../../core/theme';
+import { useVehicleInspection, VEHICLE_CATEGORIES, findRtoClassForType } from '../hooks/useVehicleInspection';
+import { useKeyboardOffset } from '../hooks/useKeyboardOffset';
+import { validators } from '../../../utils/validators';
+
+const { colors } = theme;
+
+/**
+ * Vehicle RC & Roadworthiness Inspection Screen
+ *
+ * Production Flow:
+ * 1. Two distinct stacked rows for Front Side RC and Back Side RC (Both Mandatory).
+ * 2. Uploading via Camera or Browse triggers automated AI OCR extraction.
+ * 3. Once uploaded, the vehicle particulars UI is smoothly revealed and auto-filled.
+ * 4. User reviews details, checks DPDP consent, and submits for Parivahan verification.
+ */
+export function VehicleInspectionScreen() {
+  const {
+    vehicleCategory,
+    setVehicleCategory,
+    vehicleType,
+    setVehicleType,
+    isFormValid,
+    vehicleNumber,
+    setVehicleNumber,
+    engineNumber,
+    setEngineNumber,
+    chassisNumber,
+    setChassisNumber,
+    frontDoc,
+    backDoc,
+    isOcrExtracted,
+    extractedMeta,
+    handleRemoveDoc,
+    openPicker,
+    agreed,
+    setAgreed,
+    loading,
+    ocrLoading,
+    result,
+    setResult,
+    errorMsg,
+    setErrorMsg,
+    pickerModalVisible,
+    setPickerModalVisible,
+    handleInspect,
+    handleCameraCapture,
+    handleGalleryBrowse,
+    handleFileBrowse,
+  } = useVehicleInspection();
+
+  const selectedRtoClass = findRtoClassForType(vehicleType);
+
+  const cleanVehicleNum = validators.cleanInput(vehicleNumber);
+  const isVehicleValid = validators.isValidVehicleNumber(cleanVehicleNum);
+  const isChassisValid = !chassisNumber || validators.isValidChassisNumber(chassisNumber);
+
+  const [vehicleTouched, setVehicleTouched] = useState(false);
+  const [chassisTouched, setChassisTouched] = useState(false);
+  const [vehicleTypeModalVisible, setVehicleTypeModalVisible] = useState(false);
+
+  const typeInputRef = useRef<any>(null);
+  const plateInputRef = useRef<any>(null);
+  const engineInputRef = useRef<any>(null);
+  const chassisInputRef = useRef<any>(null);
+  const scrollViewRef = useRef<any>(null);
+  const fieldOffsets = useRef<{ [key: string]: number }>({});
+  const { dynamicPaddingBottom } = useKeyboardOffset(16);
+
+  const handleLayout = (fieldKey: string, event: LayoutChangeEvent) => {
+    fieldOffsets.current[fieldKey] = event.nativeEvent.layout.y;
+  };
+
+  const scrollToField = (fieldKey: string) => {
+    const y = fieldOffsets.current[fieldKey];
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: y !== undefined ? Math.max(0, y - 12) : 380,
+        animated: true,
+      });
+    }, 120);
+  };
+
+  const onSubmit = () => {
+    setVehicleTouched(true);
+    setChassisTouched(true);
+    if (!isFormValid) return;
+    handleInspect(true);
+  };
+
+  return (
+    <View style={styles.keyboardContainer}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: dynamicPaddingBottom }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        showsVerticalScrollIndicator={false}
+      >
+      {/* ROW 1: RC FRONT SIDE */}
+      <View style={styles.documentRow}>
+        <View style={styles.rowHeader}>
+          <Text style={styles.rowLabel}>RC Card (Front Side)*</Text>
+          {frontDoc && (
+            <View style={styles.badgeSuccess}>
+              <Text style={styles.badgeSuccessText}>✓ Uploaded</Text>
+            </View>
+          )}
+        </View>
+
+        {frontDoc ? (
+          /* Uploaded Preview State */
+          <View style={styles.cardPreviewContainer}>
+            <Image source={{ uri: frontDoc.uri }} style={styles.cardImagePreview} resizeMode="cover" />
+            <View style={styles.cardTopBadge}>
+              <View style={styles.verifiedPill}>
+                <Ionicons name="checkmark-circle" size={13} color="#FFFFFF" />
+                <Text style={styles.verifiedPillText}>Front Side Captured</Text>
+              </View>
+            </View>
+            <View style={styles.cardBottomBar}>
+              <TouchableOpacity
+                style={styles.cardBarButton}
+                onPress={() => openPicker('FRONT')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh-outline" size={15} color="#FFFFFF" />
+                <Text style={styles.cardBarButtonText}>Retake</Text>
+              </TouchableOpacity>
+              <View style={styles.barDivider} />
+              <TouchableOpacity
+                style={styles.cardBarButton}
+                onPress={() => handleRemoveDoc('FRONT')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="trash-outline" size={15} color="#FCA5A5" />
+                <Text style={[styles.cardBarButtonText, { color: '#FCA5A5' }]}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          /* Empty Card State */
+          <View style={styles.emptyCardContainer}>
+            <TouchableOpacity
+              style={styles.emptyCardBody}
+              onPress={() => openPicker('FRONT')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="cloud-upload-outline" size={32} color="#334155" />
+              </View>
+              <Text style={styles.emptyTitle}>Upload Front Side of RC</Text>
+            </TouchableOpacity>
+
+            <View style={styles.cardActionRow}>
+              <TouchableOpacity
+                style={styles.btnCamera}
+                onPress={() => handleCameraCapture('FRONT')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="camera" size={15} color="#FFFFFF" />
+                <Text style={styles.btnCameraText}>Take Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.btnBrowse}
+                onPress={() => handleGalleryBrowse('FRONT')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="images-outline" size={15} color="#0F172A" />
+                <Text style={styles.btnBrowseText}>Browse Files</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* ROW 2: RC BACK SIDE */}
+      <View style={styles.documentRow}>
+        <View style={styles.rowHeader}>
+          <Text style={styles.rowLabel}>RC Card (Back Side)*</Text>
+          {backDoc && (
+            <View style={styles.badgeSuccess}>
+              <Text style={styles.badgeSuccessText}>✓ Uploaded</Text>
+            </View>
+          )}
+        </View>
+
+        {backDoc ? (
+          /* Uploaded Preview State */
+          <View style={styles.cardPreviewContainer}>
+            <Image source={{ uri: backDoc.uri }} style={styles.cardImagePreview} resizeMode="cover" />
+            <View style={styles.cardTopBadge}>
+              <View style={styles.verifiedPill}>
+                <Ionicons name="checkmark-circle" size={13} color="#FFFFFF" />
+                <Text style={styles.verifiedPillText}>Back Side Captured</Text>
+              </View>
+            </View>
+            <View style={styles.cardBottomBar}>
+              <TouchableOpacity
+                style={styles.cardBarButton}
+                onPress={() => openPicker('BACK')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh-outline" size={15} color="#FFFFFF" />
+                <Text style={styles.cardBarButtonText}>Retake</Text>
+              </TouchableOpacity>
+              <View style={styles.barDivider} />
+              <TouchableOpacity
+                style={styles.cardBarButton}
+                onPress={() => handleRemoveDoc('BACK')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="trash-outline" size={15} color="#FCA5A5" />
+                <Text style={[styles.cardBarButtonText, { color: '#FCA5A5' }]}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          /* Empty Card State */
+          <View style={styles.emptyCardContainer}>
+            <TouchableOpacity
+              style={styles.emptyCardBody}
+              onPress={() => openPicker('BACK')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="cloud-upload-outline" size={32} color="#334155" />
+              </View>
+              <Text style={styles.emptyTitle}>Upload Back Side of RC</Text>
+            </TouchableOpacity>
+
+            <View style={styles.cardActionRow}>
+              <TouchableOpacity
+                style={[styles.btnCamera, { backgroundColor: '#334155' }]}
+                onPress={() => handleCameraCapture('BACK')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="camera" size={15} color="#FFFFFF" />
+                <Text style={styles.btnCameraText}>Take Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.btnBrowse}
+                onPress={() => handleGalleryBrowse('BACK')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="images-outline" size={15} color="#0F172A" />
+                <Text style={styles.btnBrowseText}>Browse Files</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* AI OCR Processing Indicator */}
+      {ocrLoading && (
+        <View style={styles.ocrLoadingBox}>
+          <ActivityIndicator size="small" color="#EA580C" />
+          <Text style={styles.ocrLoadingText}>Analyzing RC card with AI OCR & extracting particulars...</Text>
+        </View>
+      )}
+
+      {/* 3. Form Fields: Visible Upfront for Direct Manual Typing or OCR Auto-Populate */}
+      <View style={styles.revealedSection}>
+        <View style={styles.sectionDivider} />
+
+        {/* Section Header */}
+        <View style={styles.reviewHeaderRow}>
+          {isOcrExtracted && (
+            <View style={styles.ocrExtractedBadge}>
+              <Ionicons name="checkmark-circle" size={13} color="#15803D" />
+              <Text style={styles.ocrExtractedBadgeText}>Auto-Extracted from RC Card (AI OCR)</Text>
+            </View>
+          )}
+          <Text style={styles.reviewTitle}>Vehicle Particulars</Text>
+          <Text style={styles.reviewSubtitle}>
+            {isOcrExtracted
+              ? 'Please review the auto-populated details below. You can edit any field if required.'
+              : 'Enter your vehicle details below or upload RC photos above for automated extraction.'}
+          </Text>
+        </View>
+
+        {/* AI Extracted Metadata Summary Card */}
+        {extractedMeta && (
+          <View style={styles.metaCard}>
+            {extractedMeta.ownerName && (
+              <View style={styles.metaRow}>
+                <Ionicons name="person-outline" size={14} color="#64748B" />
+                <Text style={styles.metaLabel}>Registered Owner:</Text>
+                <Text style={styles.metaValue} numberOfLines={1}>
+                  {extractedMeta.ownerName}
+                </Text>
+              </View>
+            )}
+            {extractedMeta.makerModel && (
+              <View style={styles.metaRow}>
+                <Ionicons name="construct-outline" size={14} color="#64748B" />
+                <Text style={styles.metaLabel}>Maker / Model:</Text>
+                <Text style={styles.metaValue} numberOfLines={1}>
+                  {extractedMeta.makerModel}
+                </Text>
+              </View>
+            )}
+            {extractedMeta.fuelType && (
+              <View style={styles.metaRow}>
+                <Ionicons name="flame-outline" size={14} color="#64748B" />
+                <Text style={styles.metaLabel}>Fuel Type:</Text>
+                <Text style={styles.metaValue}>{extractedMeta.fuelType}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Field 1: Vehicle Type Dropdown (13 Types with RTO COV Code) */}
+        <View
+          style={styles.fieldGroup}
+          onLayout={(e) => handleLayout('vehicleType', e)}
+        >
+          <View style={styles.fieldHeaderRow}>
+            <View style={styles.fieldHeaderLeft}>
+              <Text style={styles.fieldLabel}>Vehicle Type*</Text>
+            </View>
+            {selectedRtoClass && (
+              <View style={styles.rtoBadge}>
+                <Text style={styles.rtoBadgeText}>COV: {selectedRtoClass}</Text>
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.dropdownButton,
+              vehicleType ? styles.dropdownButtonSelected : null,
+            ]}
+            onPress={() => setVehicleTypeModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.dropdownMainContent}>
+              {vehicleType ? (
+                <View style={styles.selectedTypeRow}>
+                  <Text style={styles.dropdownText} numberOfLines={1}>
+                    {vehicleType}
+                  </Text>
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryBadgeText}>
+                      COV: {vehicleCategory || findCategoryForType(vehicleType)}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.dropdownPlaceholder} numberOfLines={1}>
+                  Select Vehicle Type (13 Equipment Types)*
+                </Text>
+              )}
+            </View>
+            <Ionicons name="chevron-down" size={18} color="#64748B" style={styles.dropdownChevron} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Field 2: Vehicle Registration Mark */}
+        <View
+          style={styles.fieldGroup}
+          onLayout={(e) => handleLayout('vehicleNumber', e)}
+        >
+          <View style={styles.fieldHeaderRow}>
+            <View style={styles.fieldHeaderLeft}>
+              <Text style={styles.fieldLabel}>Vehicle Registration Mark*</Text>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.plateInputContainer,
+              vehicleTouched && vehicleNumber.trim().length > 0 && !isVehicleValid ? styles.inputWarningBorder : null,
+              isVehicleValid ? styles.inputSuccessBorder : null,
+              errorMsg ? styles.inputError : null,
+            ]}
+          >
+            <TextInput
+              ref={plateInputRef}
+              style={styles.plateInput}
+              value={vehicleNumber}
+              onChangeText={(text) => {
+                setVehicleNumber(text);
+                if (errorMsg) setErrorMsg(null);
+              }}
+              onFocus={() => {
+                setVehicleTouched(false);
+                scrollToField('vehicleNumber');
+              }}
+              onBlur={() => setVehicleTouched(true)}
+              placeholder="e.g. MH 12 AB 1234"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => engineInputRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+            {isVehicleValid && (
+              <Ionicons name="checkmark-circle" size={18} color="#10B981" style={{ marginRight: 6 }} />
+            )}
+          </View>
+          {vehicleTouched && vehicleNumber.trim().length > 0 && !isVehicleValid && (
+            <View style={styles.inlineWarningRow}>
+              <Ionicons name="alert-circle" size={14} color="#EA580C" />
+              <Text style={styles.inlineWarningText}>
+                Invalid vehicle registration number format.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Field 4: Engine Number */}
+        <View
+          style={styles.fieldGroup}
+          onLayout={(e) => handleLayout('engineNumber', e)}
+        >
+          <View style={styles.fieldHeaderRow}>
+            <View style={styles.fieldHeaderLeft}>
+              <Text style={styles.fieldLabel}>Engine Number*</Text>
+            </View>
+          </View>
+
+          <View style={styles.standardInputContainer}>
+            <TextInput
+              ref={engineInputRef}
+              style={styles.standardInput}
+              value={engineNumber}
+              onChangeText={setEngineNumber}
+              onFocus={() => scrollToField('engineNumber')}
+              placeholder="e.g. ENG1234567890"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => chassisInputRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+          </View>
+        </View>
+
+        {/* Field 5: Chassis Number (VIN) */}
+        <View
+          style={styles.fieldGroup}
+          onLayout={(e) => handleLayout('chassisNumber', e)}
+        >
+          <View style={styles.fieldHeaderRow}>
+            <View style={styles.fieldHeaderLeft}>
+              <Text style={styles.fieldLabel}>Chassis Number (VIN)*</Text>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.standardInputContainer,
+              chassisTouched && chassisNumber.length > 0 && !isChassisValid ? styles.inputWarningBorder : null,
+              chassisNumber.length === 17 && isChassisValid ? styles.inputSuccessBorder : null,
+            ]}
+          >
+            <TextInput
+              ref={chassisInputRef}
+              style={styles.standardInput}
+              value={chassisNumber}
+              onChangeText={setChassisNumber}
+              onFocus={() => {
+                setChassisTouched(false);
+                scrollToField('chassisNumber');
+              }}
+              onBlur={() => setChassisTouched(true)}
+              placeholder="e.g. 1HGCR2F83HA000000"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="characters"
+              maxLength={17}
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
+            />
+            <View style={styles.counterBadge}>
+              <Text style={styles.counterText}>{chassisNumber.length}/17</Text>
+              {chassisNumber.length === 17 && isChassisValid && (
+                <Ionicons name="checkmark-circle" size={13} color="#10B981" style={{ marginLeft: 3 }} />
+              )}
+            </View>
+          </View>
+          {chassisTouched && chassisNumber.length > 0 && !isChassisValid && (
+            <View style={styles.inlineWarningRow}>
+              <Ionicons name="alert-circle" size={14} color="#EA580C" />
+              <Text style={styles.inlineWarningText}>
+                Chassis Number (VIN) must be 17 characters without letters I, O, or Q.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Inline Error Message */}
+        {errorMsg && (
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={16} color="#DC2626" />
+            <Text style={styles.errorText}>{errorMsg}</Text>
+          </View>
+        )}
+
+        {/* DPDP Consent Checkbox Card */}
+        <View style={styles.consentCard}>
+          <TouchableOpacity
+            style={styles.consentRow}
+            onPress={() => setAgreed(!agreed)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.checkbox, agreed ? styles.checkboxChecked : null]}>
+              {agreed && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+            </View>
+            <Text style={styles.consentText}>
+              I authorize EquipRent to verify my RC records & traffic challans via VAHAN under DPDP Act 2023.{' '}
+              <Text
+                style={styles.readMoreLink}
+                onPress={() =>
+                  Alert.alert(
+                    'Verification Policy',
+                    'Vehicle registration and traffic violation records are verified in compliance with government transport regulations and DPDP Act 2023 guidelines.'
+                  )
+                }
+              >
+                Read More
+              </Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Primary Submit Button */}
+        <TouchableOpacity
+          style={[styles.submitButton, !isFormValid ? styles.submitButtonDisabled : null]}
+          onPress={onSubmit}
+          disabled={!isFormValid}
+          activeOpacity={0.88}
+        >
+          <Ionicons name="shield-checkmark" size={18} color="#FFFFFF" />
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Text style={styles.submitButtonText}>Submit for RC & Challan Verification</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* 4. Verification Result Card */}
+      {result && <VerifiedBadgeCard result={result} />}
+
+      {/* Universal Document Picker Modal */}
+      <DocumentPickerModal
+        visible={pickerModalVisible}
+        title="Upload Vehicle RC"
+        subtitle="Photograph or browse Registration Certificate (RC) for AI verification:"
+        onClose={() => setPickerModalVisible(false)}
+        onSelectCamera={handleCameraCapture}
+        onSelectGallery={handleGalleryBrowse}
+        onSelectFiles={handleFileBrowse}
+      />
+
+      {/* Vehicle Type Dropdown Modal (14 Fleet Equipment Types) */}
+      <VehicleTypeDropdownModal
+        visible={vehicleTypeModalVisible}
+        selectedType={vehicleType}
+        onSelect={(item) => {
+          setVehicleType(item.name);
+          setVehicleCategory(item.covCode);
+        }}
+        onClose={() => setVehicleTypeModalVisible(false)}
+      />
+    </ScrollView>
+    </View>
+  );
+}
+
+export const VehicleRcScreen = VehicleInspectionScreen;
+
+const styles = StyleSheet.create({
+  keyboardContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  cardTitle: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  cardSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  closeBtn: {
+    padding: 4,
+  },
+
+  // Document Section
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionTitleWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  sectionSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginTop: 3,
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+
+  // Document Rows (Stacked)
+  documentRow: {
+    marginBottom: 14,
+  },
+  rowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  rowLabel: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  badgeRequired: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeRequiredText: {
+    color: '#DC2626',
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  badgeSuccess: {
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeSuccessText: {
+    color: '#15803D',
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+
+  // Empty Card Slot
+  emptyCardContainer: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    padding: 12,
+  },
+  emptyCardBody: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  emptyIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  emptySubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  cardActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  btnCamera: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#0F172A',
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  btnCameraText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  btnBrowse: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  btnBrowseText: {
+    color: '#0F172A',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+
+  // Uploaded Preview Card
+  cardPreviewContainer: {
+    height: 156,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0F172A',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+  },
+  cardImagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+  cardTopBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+  },
+  verifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(21, 128, 61, 0.94)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  verifiedPillText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  cardBottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 8,
+  },
+  cardBarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+  },
+  cardBarButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  barDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+
+  // Loading Banner
+  ocrLoadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 8,
+    marginTop: 4,
+    marginBottom: 10,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  ocrLoadingText: {
+    color: '#C2410C',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Revealed Particulars
+  revealedSection: {
+    marginTop: 4,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 16,
+  },
+  reviewHeaderRow: {
+    marginBottom: 12,
+  },
+  ocrExtractedBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  ocrExtractedBadgeText: {
+    color: '#15803D',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  manualEntryBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  manualEntryBadgeText: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  reviewTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  reviewSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  metaCard: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+    gap: 5,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  metaLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  metaValue: {
+    fontSize: 11,
+    color: '#0F172A',
+    fontWeight: '700',
+    flex: 1,
+  },
+
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 50,
+  },
+  dropdownButtonSelected: {
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+  },
+  dropdownButtonActive: {
+    borderColor: '#EA580C',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+  },
+  dropdownMainContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  dropdownChevron: {
+    marginLeft: 'auto',
+  },
+  inlineDropdownCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderTopWidth: 0,
+    borderColor: '#EA580C',
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  inlineDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginVertical: 2,
+    gap: 10,
+  },
+  inlineDropdownItemActive: {
+    backgroundColor: '#FFF7ED',
+  },
+  inlineItemTitle: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  inlineItemTitleActive: {
+    color: '#EA580C',
+    fontWeight: '700',
+  },
+  inlineItemSub: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  dropdownDisabled: {
+    backgroundColor: '#F1F5F9',
+    opacity: 0.65,
+  },
+  dropdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dropdownText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+
+  fieldGroup: {
+    marginBottom: 14,
+  },
+  fieldHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  fieldHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  mandatoryText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EA580C',
+  },
+  fieldHintRight: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  digitsBadge: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  digitsBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+
+  plateInputContainer: {
+    backgroundColor: '#F0F4FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    borderRadius: 10,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  indBadge: {
+    backgroundColor: '#E0E7FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  indText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1E3A8A',
+    letterSpacing: 0.5,
+  },
+  plateInput: {
+    flex: 1,
+    paddingHorizontal: 0,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: 1.2,
+  },
+
+  standardInputContainer: {
+    backgroundColor: '#F4F7FB',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  standardInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+    letterSpacing: 0.8,
+  },
+  counterBadge: {
+    backgroundColor: '#E0E7FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  counterText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+
+  inputError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '500',
+    flex: 1,
+  },
+
+  consentCard: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    borderRadius: 12,
+    padding: 12,
+    marginVertical: 14,
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#C2410C',
+    borderColor: '#C2410C',
+  },
+  consentText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: '#334155',
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  readMoreLink: {
+    color: '#EA580C',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+
+  submitButton: {
+    backgroundColor: '#C2410C',
+    height: 52,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    shadowColor: '#C2410C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  submitButtonDisabled: {
+    opacity: 0.5,
+    shadowOpacity: 0,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    maxHeight: 420,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  typeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  typeItemActive: {
+    backgroundColor: '#FFF7ED',
+  },
+  typeItemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: 6,
+  },
+  rtoBadge: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  rtoBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#1D4ED8',
+  },
+  dropdownPlaceholder: {
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  selectedTypeRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 8,
+  },
+  categoryBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
+    flexShrink: 0,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  typeItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#334155',
+    fontWeight: '500',
+  },
+  typeItemTextActive: {
+    color: '#C2410C',
+    fontWeight: '700',
+  },
+  inlineWarningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    paddingHorizontal: 2,
+  },
+  inlineWarningText: {
+    fontSize: 11.5,
+    color: '#EA580C',
+    fontWeight: '500',
+    flex: 1,
+    lineHeight: 16,
+  },
+  inputWarningBorder: {
+    borderColor: '#FB923C',
+    backgroundColor: '#FFF7ED',
+  },
+  inputSuccessBorder: {
+    borderColor: '#86EFAC',
+    backgroundColor: '#F0FDF4',
+  },
+});
