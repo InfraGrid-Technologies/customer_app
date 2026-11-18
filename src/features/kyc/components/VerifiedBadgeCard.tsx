@@ -9,9 +9,10 @@ const { colors } = theme;
 export interface VerifiedBadgeCardProps {
   result?: any;
   onRevoked?: (data?: any) => void;
+  style?: any;
 }
 
-export function VerifiedBadgeCard({ result, onRevoked }: VerifiedBadgeCardProps) {
+export function VerifiedBadgeCard({ result, onRevoked, style }: VerifiedBadgeCardProps) {
   const [loadingRevoke, setLoadingRevoke] = useState(false);
   const [revoked, setRevoked] = useState(false);
   const [viewingAudit, setViewingAudit] = useState(false);
@@ -81,9 +82,9 @@ export function VerifiedBadgeCard({ result, onRevoked }: VerifiedBadgeCardProps)
     isCompliant = apiIsVerified;
   }
 
-  // When RC / Challan vehicle verification is rejected, show only up to the rejection reason & violations box
-  const isVehicleVerification = Boolean(data.isUnified || data.vehicleNumber || data.rcNumber);
-  const hideRemainingData = !isCompliant && isVehicleVerification;
+  // When RC / Challan or DL verification is rejected, show only up to the rejection reason & violations box
+  const isVehicleOrDlVerification = Boolean(data.isUnified || data.vehicleNumber || data.rcNumber || data.dlNumber);
+  const hideRemainingData = !isCompliant && isVehicleOrDlVerification;
 
   const handleFetchAudit = async () => {
     if (!consentId) {
@@ -128,7 +129,7 @@ export function VerifiedBadgeCard({ result, onRevoked }: VerifiedBadgeCardProps)
   };
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, style]}>
       {/* Top Status Hero Banner */}
       <View style={[styles.statusBanner, isCompliant ? styles.bannerSuccess : styles.bannerDanger]}>
         <View style={styles.statusIconWrap}>
@@ -172,7 +173,7 @@ export function VerifiedBadgeCard({ result, onRevoked }: VerifiedBadgeCardProps)
           </View>
         )}
 
-        {/* For rejected vehicle verification, hide remaining data sections per user request */}
+        {/* For rejected vehicle or DL verification, hide remaining data sections per user request */}
         {!hideRemainingData && (
           <>
             {/* Identity & Record Profile */}

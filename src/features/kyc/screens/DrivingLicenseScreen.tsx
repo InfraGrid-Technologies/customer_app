@@ -303,22 +303,9 @@ export function DrivingLicenseScreen() {
           <Text style={styles.reviewSubtitle}>
             {isOcrExtracted
               ? 'Please review the auto-populated details below. You can edit any field if required.'
-              : 'Enter your driving license details below or upload license photos above for auto-fill.'}
+              : 'Enter your driving license details below or upload both license photos (front & back) above for auto-fill.'}
           </Text>
         </View>
-
-        {/* AI Extracted Driver Name */}
-        {extractedName && (
-          <View style={styles.metaCard}>
-            <View style={styles.metaRow}>
-              <Ionicons name="person-circle-outline" size={16} color="#64748B" />
-              <Text style={styles.metaLabel}>Operator Name:</Text>
-              <Text style={styles.metaValue} numberOfLines={1}>
-                {extractedName}
-              </Text>
-            </View>
-          </View>
-        )}
 
         {/* Field 1: Driving License Number */}
         <View
@@ -459,6 +446,9 @@ export function DrivingLicenseScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* 4. Verification Result Card (Positioned between Consent & Submit Button) */}
+        {result && <VerifiedBadgeCard result={result} style={styles.resultCard} />}
+
         {/* Primary Submit Button */}
         <TouchableOpacity
           style={[styles.submitButton, !isFormValid ? styles.submitButtonDisabled : null]}
@@ -474,9 +464,6 @@ export function DrivingLicenseScreen() {
           )}
         </TouchableOpacity>
       </View>
-
-      {/* 4. Verification Result Card */}
-      {result && <VerifiedBadgeCard result={result} />}
 
       {/* Universal Document Picker Modal */}
       <DocumentPickerModal
@@ -976,6 +963,11 @@ const styles = StyleSheet.create({
     color: '#EA580C',
     fontWeight: '700',
     textDecorationLine: 'underline',
+  },
+
+  resultCard: {
+    marginTop: 0,
+    marginBottom: 16,
   },
 
   submitButton: {
