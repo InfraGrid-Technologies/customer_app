@@ -11,10 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VerifiedBadgeCard } from '../components/VerifiedBadgeCard';
-import { theme } from '../../../core/theme';
 import { useAadhaar } from '../hooks/useAadhaar';
-
-const { colors } = theme;
 
 /**
  * Aadhaar DigiLocker e-KYC Verification Screen
@@ -36,7 +33,6 @@ export function AadhaarScreen() {
     initiateSession: handleInitiate,
     openDigilockerGateway: handleOpenDigilockerGateway,
     fetchAadhaarDetails: handleFetchAadhaar,
-    reset: handleReset,
   } = useAadhaar();
 
   return (

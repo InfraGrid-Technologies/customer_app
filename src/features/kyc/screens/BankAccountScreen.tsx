@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
   LayoutChangeEvent,

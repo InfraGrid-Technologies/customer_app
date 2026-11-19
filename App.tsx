@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   StyleSheet,
@@ -67,7 +66,7 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
 
       {/* Top Header with Active Screen Title */}
@@ -183,7 +182,7 @@ export default function App() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

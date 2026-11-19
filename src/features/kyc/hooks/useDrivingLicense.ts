@@ -32,8 +32,13 @@ export function useDrivingLicense() {
     setErrorMsg(null);
 
     if (!frontDoc || !backDoc) {
-      setErrorMsg("Both Front and Back photos of the Driving License card are mandatory.");
-      Alert.alert("Documents Required", "Please upload clear photos of both Front and Back sides of your physical Driving License.");
+      setErrorMsg(
+        "Both Front and Back photos of the Driving License card are mandatory.",
+      );
+      Alert.alert(
+        "Documents Required",
+        "Please upload clear photos of both Front and Back sides of your physical Driving License.",
+      );
       return;
     }
 
@@ -50,7 +55,10 @@ export function useDrivingLicense() {
       setErrorMsg(
         "Date of birth must be in YYYY-MM-DD format (required by Parivahan Sarathi).",
       );
-      Alert.alert("Invalid Date of Birth", "Please enter Date of Birth in YYYY-MM-DD format (e.g. 1995-05-15).");
+      Alert.alert(
+        "Invalid Date of Birth",
+        "Please enter Date of Birth in YYYY-MM-DD format (e.g. 1995-05-15).",
+      );
       return;
     }
 
@@ -104,61 +112,79 @@ export function useDrivingLicense() {
   };
 
   /**
-   * Sends the captured/browsed document base64 to AI OCR service
+   * Processes captured/browsed Driving License document:
+   * - Auto-fill fields ONLY after uploading BOTH front and back images.
+   * - When both sides are uploaded, the front side is analyzed by Surepass AI OCR
+   *   to extract license number, DOB, and operator name.
+   * - The back side is securely retained for statutory DPDP compliance.
    */
   const processDocumentOcr = async (
     doc: CapturedDocument,
     side: "FRONT" | "BACK",
   ) => {
+    const updatedFront = side === "FRONT" ? doc : frontDoc;
+    const updatedBack = side === "BACK" ? doc : backDoc;
+
     if (side === "FRONT") {
       setFrontDoc(doc);
-      setOcrLoading(true);
-      try {
-        const ocrRes = await kycApi.ocrDrivingLicense({
-          imageBase64: doc.base64,
-          mimeType: doc.mimeType || "image/jpeg",
-          consent: {
-            agreed: true,
-            noticeVersion: "DL_OCR_V1.0",
-            noticeText: "User consent for Driving License OCR extraction",
-          },
-        });
-
-        if (ocrRes.success && ocrRes.data) {
-          setIsOcrExtracted(true);
-          if (ocrRes.data.dlNumber) setDlNumber(ocrRes.data.dlNumber);
-          if (ocrRes.data.dob) setDob(ocrRes.data.dob);
-          if (ocrRes.data.name) setExtractedName(ocrRes.data.name);
-        } else {
-          setFrontDoc(null);
-          setIsOcrExtracted(false);
-          Alert.alert(
-            "Invalid Document Image",
-            ocrRes.data?.message || ocrRes.message || "The uploaded image does not appear to be an official Driving License. Please upload a clear photo of your physical card."
-          );
-        }
-      } catch (err: any) {
-        setFrontDoc(null);
-        setIsOcrExtracted(false);
-        const errMsg = err?.message || "Invalid Document Image: The uploaded photo does not appear to be a valid physical Driving License. Please ensure your physical card is clearly visible, well-lit, and not a random photo.";
-        Alert.alert("Invalid Document Image", errMsg);
-      } finally {
-        setOcrLoading(false);
-      }
     } else {
       setBackDoc(doc);
+    }
+
+    // Auto-fill fields ONLY after uploading BOTH front and back images
+    if (!updatedFront || !updatedBack) {
+      setIsOcrExtracted(false);
+      return;
+    }
+
+    setOcrLoading(true);
+    try {
+      const ocrRes = await kycApi.ocrDrivingLicense({
+        imageBase64: updatedFront.base64,
+        mimeType: updatedFront.mimeType || "image/jpeg",
+        consent: {
+          agreed: true,
+          noticeVersion: "DL_OCR_V1.0",
+          noticeText: "User consent for Driving License OCR extraction",
+        },
+      });
+
+      if (ocrRes.success && ocrRes.data) {
+        setIsOcrExtracted(true);
+        if (ocrRes.data.dlNumber) setDlNumber(ocrRes.data.dlNumber);
+        if (ocrRes.data.dob) setDob(ocrRes.data.dob);
+        if (ocrRes.data.name) setExtractedName(ocrRes.data.name);
+      } else {
+        setIsOcrExtracted(false);
+        Alert.alert(
+          "Invalid Document Image",
+          ocrRes.data?.message ||
+            ocrRes.message ||
+            "The uploaded image does not appear to be an official Driving License. Please upload a clear photo of your physical card.",
+        );
+      }
+    } catch (err: any) {
+      setIsOcrExtracted(false);
+      const errMsg =
+        err?.message ||
+        "Invalid Document Image: The uploaded photo does not appear to be a valid physical Driving License. Please ensure your physical card is clearly visible, well-lit, and not a random photo.";
+      Alert.alert("Invalid Document Image", errMsg);
+    } finally {
+      setOcrLoading(false);
     }
   };
 
   const handleRemoveDoc = (side: "FRONT" | "BACK") => {
     if (side === "FRONT") {
       setFrontDoc(null);
+    } else {
+      setBackDoc(null);
+    }
+    if (isOcrExtracted) {
       setIsOcrExtracted(false);
       setDlNumber("");
       setDob("");
       setExtractedName(null);
-    } else {
-      setBackDoc(null);
     }
   };
 
