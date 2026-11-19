@@ -145,25 +145,35 @@ export function useVehicleInspection() {
 
   /**
    * Processes captured/browsed RC document:
-   * - FRONT side: Scanned by Surepass Enterprise OCR to auto-fill vehicle, chassis, and engine number.
-   * - BACK side: Attached securely for DPDP statutory compliance and audit retention.
-   *   (Vehicle category & RTO class verification is handled against official Parivahan records).
+   * - Auto-fill fields ONLY after uploading BOTH front and back images.
+   * - When both sides are uploaded, the front side is analyzed by Surepass AI OCR
+   *   to extract vehicle number, chassis number, and engine number.
+   * - The back side is securely retained for statutory DPDP compliance.
    */
   const processDocumentOcr = async (
     doc: CapturedDocument,
     side: "FRONT" | "BACK",
   ) => {
-    if (side === "BACK") {
+    const updatedFront = side === "FRONT" ? doc : frontDoc;
+    const updatedBack = side === "BACK" ? doc : backDoc;
+
+    if (side === "FRONT") {
+      setFrontDoc(doc);
+    } else {
       setBackDoc(doc);
+    }
+
+    // Auto-fill fields ONLY after uploading BOTH front and back images
+    if (!updatedFront || !updatedBack) {
+      setIsOcrExtracted(false);
       return;
     }
 
-    setFrontDoc(doc);
     setOcrLoading(true);
     try {
       const ocrRes = await kycApi.ocrVehicleRc({
-        imageBase64: doc.base64,
-        mimeType: doc.mimeType || "image/jpeg",
+        imageBase64: updatedFront.base64,
+        mimeType: updatedFront.mimeType || "image/jpeg",
         consent: {
           agreed: true,
           noticeVersion: "RC_OCR_V1.0",
@@ -188,14 +198,14 @@ export function useVehicleInspection() {
           vehicleClass: ocrRes.data.vehicleClass,
         }));
       } else {
-        setFrontDoc(null);
+        setIsOcrExtracted(false);
         Alert.alert(
           "Invalid Document Image",
           ocrRes.data?.message || ocrRes.message || "The uploaded image does not appear to be an official Vehicle Registration Certificate (RC). Please upload a clear photo of your physical card."
         );
       }
     } catch (err: any) {
-      setFrontDoc(null);
+      setIsOcrExtracted(false);
       const errMsg = err?.message || "Invalid Document Image: The uploaded photo does not appear to be a valid Vehicle Registration Certificate (RC). Please ensure the physical card is well-lit, fully visible, and not a random photo.";
       Alert.alert("Invalid Document Image", errMsg);
     } finally {
@@ -206,13 +216,15 @@ export function useVehicleInspection() {
   const handleRemoveDoc = (side: "FRONT" | "BACK") => {
     if (side === "FRONT") {
       setFrontDoc(null);
+    } else {
+      setBackDoc(null);
+    }
+    if (isOcrExtracted) {
       setIsOcrExtracted(false);
       setVehicleNumber("");
       setEngineNumber("");
       setChassisNumber("");
       setExtractedMeta(null);
-    } else {
-      setBackDoc(null);
     }
   };
 
