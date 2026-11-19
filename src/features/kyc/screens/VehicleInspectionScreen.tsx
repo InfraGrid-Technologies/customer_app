@@ -8,9 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  Modal,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
   LayoutChangeEvent,
@@ -18,12 +16,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { VerifiedBadgeCard, DocumentPickerModal, VehicleTypeDropdownModal } from '../components';
 import { findCategoryForType } from '../constants/vehicleTaxonomy';
-import { theme } from '../../../core/theme';
-import { useVehicleInspection, VEHICLE_CATEGORIES, findRtoClassForType } from '../hooks/useVehicleInspection';
+import { useVehicleInspection, findRtoClassForType } from '../hooks/useVehicleInspection';
 import { useKeyboardOffset } from '../hooks/useKeyboardOffset';
 import { validators } from '../../../utils/validators';
-
-const { colors } = theme;
 
 /**
  * Vehicle RC & Roadworthiness Inspection Screen
@@ -50,7 +45,6 @@ export function VehicleInspectionScreen() {
     frontDoc,
     backDoc,
     isOcrExtracted,
-    extractedMeta,
     handleRemoveDoc,
     openPicker,
     agreed,
@@ -58,7 +52,6 @@ export function VehicleInspectionScreen() {
     loading,
     ocrLoading,
     result,
-    setResult,
     errorMsg,
     setErrorMsg,
     pickerModalVisible,
@@ -79,7 +72,6 @@ export function VehicleInspectionScreen() {
   const [chassisTouched, setChassisTouched] = useState(false);
   const [vehicleTypeModalVisible, setVehicleTypeModalVisible] = useState(false);
 
-  const typeInputRef = useRef<any>(null);
   const plateInputRef = useRef<any>(null);
   const engineInputRef = useRef<any>(null);
   const chassisInputRef = useRef<any>(null);

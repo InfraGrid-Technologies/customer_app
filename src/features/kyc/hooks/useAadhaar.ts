@@ -27,9 +27,15 @@ export function useAadhaar() {
 
   // Keep refs to avoid stale closures in deep link & browser session handlers
   const sessionRef = useRef<any>(null);
-  sessionRef.current = session;
   const resultRef = useRef<any>(null);
-  resultRef.current = result;
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    resultRef.current = result;
+  }, [result]);
 
   /**
    * Fetches verified Aadhaar XML details after user finishes OTP verification

@@ -9,19 +9,15 @@ import {
   Alert,
   ScrollView,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
   LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VerifiedBadgeCard, DocumentPickerModal } from '../components';
-import { theme } from '../../../core/theme';
 import { useDrivingLicense } from '../hooks/useDrivingLicense';
 import { useKeyboardOffset } from '../hooks/useKeyboardOffset';
 import { validators } from '../../../utils/validators';
-
-const { colors } = theme;
 
 /**
  * Driving License Verification Screen
@@ -42,7 +38,6 @@ export function DrivingLicenseScreen() {
     backDoc,
     activeSide,
     isOcrExtracted,
-    extractedName,
     handleRemoveDoc,
     openPicker,
     agreed,
@@ -50,7 +45,6 @@ export function DrivingLicenseScreen() {
     loading,
     ocrLoading,
     result,
-    setResult,
     errorMsg,
     setErrorMsg,
     pickerModalVisible,

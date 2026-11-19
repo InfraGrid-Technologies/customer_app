@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { kycApi } from '../services/kycApi';
 import { theme } from '../../../core/theme';
 
 const { colors } = theme;
@@ -12,15 +11,10 @@ export interface VerifiedBadgeCardProps {
   style?: any;
 }
 
-export function VerifiedBadgeCard({ result, onRevoked, style }: VerifiedBadgeCardProps) {
-  const [loadingRevoke, setLoadingRevoke] = useState(false);
-  const [revoked, setRevoked] = useState(false);
-  const [viewingAudit, setViewingAudit] = useState(false);
-  const [auditData, setAuditData] = useState(null);
-
+export function VerifiedBadgeCard({ result, style }: VerifiedBadgeCardProps) {
   if (!result || !result.data) return null;
 
-  const { data, consentId, source, isVerified: apiIsVerified, rejectionReasons = [], challanConsentId } = result;
+  const { data, source, isVerified: apiIsVerified, rejectionReasons = [] } = result;
   const compliance = data.rcCompliance || data.compliance || {};
   const challanCompliance = data.challanCompliance || (data.rcNumber ? data.compliance : null) || {};
 
@@ -85,48 +79,6 @@ export function VerifiedBadgeCard({ result, onRevoked, style }: VerifiedBadgeCar
   // When RC / Challan or DL verification is rejected, show only up to the rejection reason & violations box
   const isVehicleOrDlVerification = Boolean(data.isUnified || data.vehicleNumber || data.rcNumber || data.dlNumber);
   const hideRemainingData = !isCompliant && isVehicleOrDlVerification;
-
-  const handleFetchAudit = async () => {
-    if (!consentId) {
-      Alert.alert('Notice', 'No consent ID linked with this verification.');
-      return;
-    }
-    try {
-      const res = await kycApi.getConsent(consentId);
-      setAuditData(res.data);
-      setViewingAudit(true);
-    } catch (err) {
-      Alert.alert('Audit Fetch Failed', err.message);
-    }
-  };
-
-  const handleRevokeConsent = () => {
-    if (!consentId) return;
-    Alert.alert(
-      'Revoke DPDP Consent?',
-      'Under DPDP Act 2023 Section 6(4), you have the legal right to revoke this consent at any time. This will mark the digital verification audit trail as REVOKED.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm Revoke',
-          style: 'destructive',
-          onPress: async () => {
-            setLoadingRevoke(true);
-            try {
-              const res = await kycApi.revokeConsent(consentId);
-              setRevoked(true);
-              Alert.alert('Consent Revoked', 'Consent artifact has been successfully marked as REVOKED in the database.');
-              if (onRevoked) onRevoked(res.data);
-            } catch (err) {
-              Alert.alert('Revocation Error', err.message);
-            } finally {
-              setLoadingRevoke(false);
-            }
-          },
-        },
-      ]
-    );
-  };
 
   return (
     <View style={[styles.card, style]}>
