@@ -8,19 +8,16 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
-  Modal,
   LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { DPDPConsentCard } from '../components/DPDPConsentCard';
 import { VerifiedBadgeCard } from '../components/VerifiedBadgeCard';
 import { VehicleTypeDropdownModal } from '../components/VehicleTypeDropdownModal';
 import { kycApi } from '../services/kycApi';
 import { theme } from '../../../core/theme';
-import { VEHICLE_CATEGORIES, findRtoClassForType, findCategoryForType } from '../constants/vehicleTaxonomy';
+import { findRtoClassForType, findCategoryForType } from '../constants/vehicleTaxonomy';
 import { useKeyboardOffset } from '../hooks/useKeyboardOffset';
 import { validators } from '../../../utils/validators';
 
