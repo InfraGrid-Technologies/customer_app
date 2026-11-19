@@ -1,0 +1,100 @@
+name: Build Android
+
+on:
+    push:
+        branches: [dev, sit, main]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: build-${{ github.ref_name }}
+    cancel-in-progress: true
+
+jobs:
+    build-apk:
+        name: build-apk
+        runs-on: ubuntu-latest
+        environment: ${{ github.ref_name == 'main' && 'production' || github.ref_name }}
+        timeout-minutes: 45
+
+        env: 
+            EXPO_PUBLIC_API_URL: ${{ vars.API_URL }}
+        outputs:
+            version: ${{ steps.meta.outputs.version }}
+        steps:
+            - name: Get code
+              uses: actions/checkout@v7
+            - name: Check API_URL
+              env:
+                API_URL: ${{ vars.API_URL }}
+                TARGET_ENV: ${{ github.ref_name == 'main' && 'production' || github.ref_name }}
+              run: |
+                case "$API_URL" in
+                    https://*)
+                        echo "API_URL for $TARGET_ENV: $API_URL" ;;
+                    "")
+                    if [ "$TARGET_ENV" = "production" ]; then
+                        echo "::error::API_URL is not set in the production environment. Refusing to build a release."
+                        exit 1
+                    fi
+                    echo "::warning::API_URL is not set in the $TARGET_ENV environment. This APK cannot reach a backend (UI testing only)." ;;
+                *)
+                    echo "::error::API_URL must start with https:// (got: $API_URL). Android release builds block http."
+                    exit 1 ;;
+                esac
+            - name: Set Set up Node
+              uses: actions/setup-node@v7
+              with:
+                node-version: 22
+                cache: npm
+            - name: Set up Java
+              uses: actions/setup-java@v6
+              with:
+                distribution: temurin
+                java-version: 17
+            - name: Read app version
+              id: meta
+              run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+            - name: Install dependencies
+              run: npm ci
+            - name: Generate native Android project
+              run: npx expo prebuild --platform android --no-install
+            - name: Build release APK
+              working-directory: android
+              run: ./gradlew assembleRelease --no-daemon
+            - name: Rename APK
+              env:
+                APK_NAME: customer-app-${{ github.ref_name }}-v${{ steps.meta.outputs.version }}-${{ github.run_number }}.apk
+              run: |
+                    mkdir -p dist
+                    cp android/app/build/outputs/apk/release/app-release.apk "dist/$APK_NAME"        
+            - name: Upload APK
+              uses: actions/upload-artifact@v7
+              with:
+                name: customer-app-${{ github.ref_name }}-${{ github.run_number }}
+                path: dist/*.apk
+                retention-days: 14
+    release:
+        name: release
+        if: github.ref_name == 'main'
+        needs: build-apk
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Download APK
+              uses: actions/download-artifact@v8
+              with:
+                name: customer-app-main-${{ github.run_number }}
+                path: dist
+            - name: Create tag and GitHub Release
+              env:
+                GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                TAG: v${{ needs.build-apk.outputs.version }}-build.${{ github.run_number }}
+              run: |
+                gh release create "$TAG" dist/*.apk \
+                --repo "$GITHUB_REPOSITORY" \
+                --target "$GITHUB_SHA" \
+                --title "$TAG" \
+                --generate-notes
