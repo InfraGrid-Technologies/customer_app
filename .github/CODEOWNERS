@@ -1,0 +1,8 @@
+# Default owners for everything in the repo
+*                @InfraGrid-Technologies/developers
+
+# Pipelines and repo configuration
+/.github/        @InfraGrid-Technologies/release-owners
+
+# App identity, version and native permissions
+/app.json        @InfraGrid-Technologies/release-owners

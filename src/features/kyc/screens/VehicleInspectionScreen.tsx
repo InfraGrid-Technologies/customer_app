@@ -8,9 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  Modal,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
   LayoutChangeEvent,
@@ -18,12 +16,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { VerifiedBadgeCard, DocumentPickerModal, VehicleTypeDropdownModal } from '../components';
 import { findCategoryForType } from '../constants/vehicleTaxonomy';
-import { theme } from '../../../core/theme';
-import { useVehicleInspection, VEHICLE_CATEGORIES, findRtoClassForType } from '../hooks/useVehicleInspection';
+import { useVehicleInspection, findRtoClassForType } from '../hooks/useVehicleInspection';
 import { useKeyboardOffset } from '../hooks/useKeyboardOffset';
 import { validators } from '../../../utils/validators';
-
-const { colors } = theme;
 
 /**
  * Vehicle RC & Roadworthiness Inspection Screen
@@ -50,7 +45,6 @@ export function VehicleInspectionScreen() {
     frontDoc,
     backDoc,
     isOcrExtracted,
-    extractedMeta,
     handleRemoveDoc,
     openPicker,
     agreed,
@@ -58,7 +52,6 @@ export function VehicleInspectionScreen() {
     loading,
     ocrLoading,
     result,
-    setResult,
     errorMsg,
     setErrorMsg,
     pickerModalVisible,
@@ -79,7 +72,6 @@ export function VehicleInspectionScreen() {
   const [chassisTouched, setChassisTouched] = useState(false);
   const [vehicleTypeModalVisible, setVehicleTypeModalVisible] = useState(false);
 
-  const typeInputRef = useRef<any>(null);
   const plateInputRef = useRef<any>(null);
   const engineInputRef = useRef<any>(null);
   const chassisInputRef = useRef<any>(null);
@@ -297,40 +289,9 @@ export function VehicleInspectionScreen() {
           <Text style={styles.reviewSubtitle}>
             {isOcrExtracted
               ? 'Please review the auto-populated details below. You can edit any field if required.'
-              : 'Enter your vehicle details below or upload RC photos above for automated extraction.'}
+              : 'Enter your vehicle details below or upload both RC photos (front & back) above for automated extraction.'}
           </Text>
         </View>
-
-        {/* AI Extracted Metadata Summary Card */}
-        {extractedMeta && (
-          <View style={styles.metaCard}>
-            {extractedMeta.ownerName && (
-              <View style={styles.metaRow}>
-                <Ionicons name="person-outline" size={14} color="#64748B" />
-                <Text style={styles.metaLabel}>Registered Owner:</Text>
-                <Text style={styles.metaValue} numberOfLines={1}>
-                  {extractedMeta.ownerName}
-                </Text>
-              </View>
-            )}
-            {extractedMeta.makerModel && (
-              <View style={styles.metaRow}>
-                <Ionicons name="construct-outline" size={14} color="#64748B" />
-                <Text style={styles.metaLabel}>Maker / Model:</Text>
-                <Text style={styles.metaValue} numberOfLines={1}>
-                  {extractedMeta.makerModel}
-                </Text>
-              </View>
-            )}
-            {extractedMeta.fuelType && (
-              <View style={styles.metaRow}>
-                <Ionicons name="flame-outline" size={14} color="#64748B" />
-                <Text style={styles.metaLabel}>Fuel Type:</Text>
-                <Text style={styles.metaValue}>{extractedMeta.fuelType}</Text>
-              </View>
-            )}
-          </View>
-        )}
 
         {/* Field 1: Vehicle Type Dropdown (13 Types with RTO COV Code) */}
         <View
@@ -549,6 +510,9 @@ export function VehicleInspectionScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* 4. Verification Result Card (Positioned between Consent & Submit Button) */}
+        {result && <VerifiedBadgeCard result={result} style={styles.resultCard} />}
+
         {/* Primary Submit Button */}
         <TouchableOpacity
           style={[styles.submitButton, !isFormValid ? styles.submitButtonDisabled : null]}
@@ -564,9 +528,6 @@ export function VehicleInspectionScreen() {
           )}
         </TouchableOpacity>
       </View>
-
-      {/* 4. Verification Result Card */}
-      {result && <VerifiedBadgeCard result={result} />}
 
       {/* Universal Document Picker Modal */}
       <DocumentPickerModal
@@ -1190,6 +1151,11 @@ const styles = StyleSheet.create({
     color: '#EA580C',
     fontWeight: '700',
     textDecorationLine: 'underline',
+  },
+
+  resultCard: {
+    marginTop: 0,
+    marginBottom: 16,
   },
 
   submitButton: {
